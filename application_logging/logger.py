@@ -1,13 +1,12 @@
 from datetime import datetime
 
-
-class App_Logger:
+class AppLogger:
     def __init__(self):
         pass
 
     def log(self, file_object, log_message):
-        self.now = datetime.now()
-        self.date = self.now.date()
-        self.current_time = self.now.strftime("%H:%M:%S")
-        file_object.write(
-            str(self.date) + "/" + str(self.current_time) + "\t\t" + log_message +"\n")
+        try:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            file_object.write(f"{timestamp} - {log_message}\n")
+        except Exception as e:
+            print(f"Logging failed: {str(e)}")

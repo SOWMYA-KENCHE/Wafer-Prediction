@@ -1,150 +1,144 @@
 import pandas as pd
 import numpy as np
 from sklearn.impute import KNNImputer
+
 class Preprocessor:
     """
-        This class shall  be used to clean and transform the data before training.
-
-        Written By: iNeuron Intelligence
-        Version: 1.0
-        Revisions: None
-
-        """
+    This class is responsible for cleaning and transforming data before training.
+    """
 
     def __init__(self, file_object, logger_object):
+        """
+        Initializes Preprocessor with file and logger objects.
+
+        Args:
+            file_object: File object for logging.
+            logger_object: Logger object to log messages.
+        """
         self.file_object = file_object
         self.logger_object = logger_object
 
-    def remove_columns(self,data,columns):
+    def remove_columns(self, data, columns):
         """
-                Method Name: remove_columns
-                Description: This method removes the given columns from a pandas dataframe.
-                Output: A pandas DataFrame after removing the specified columns.
-                On Failure: Raise Exception
+        Removes specified columns from the dataset.
 
-                Written By: iNeuron Intelligence
-                Version: 1.0
-                Revisions: None
+        Args:
+            data: DataFrame from which columns need to be removed.
+            columns: List of column names to remove.
 
+        Returns:
+            A DataFrame after removing the specified columns.
+
+        Raises:
+            Exception: If there is an error in column removal.
         """
-        self.logger_object.log(self.file_object, 'Entered the remove_columns method of the Preprocessor class')
-        self.data=data
-        self.columns=columns
+        self.logger_object.log(self.file_object, 'Entered remove_columns method.')
         try:
-            self.useful_data=self.data.drop(labels=self.columns, axis=1) # drop the labels specified in the columns
-            self.logger_object.log(self.file_object,
-                                   'Column removal Successful.Exited the remove_columns method of the Preprocessor class')
-            return self.useful_data
+            useful_data = data.drop(labels=columns, axis=1)  # Remove specified columns
+            self.logger_object.log(self.file_object, 'Column removal successful.')
+            return useful_data
         except Exception as e:
-            self.logger_object.log(self.file_object,'Exception occured in remove_columns method of the Preprocessor class. Exception message:  '+str(e))
-            self.logger_object.log(self.file_object,
-                                   'Column removal Unsuccessful. Exited the remove_columns method of the Preprocessor class')
-            raise Exception()
+            self.logger_object.log(self.file_object, f"Error in remove_columns: {str(e)}")
+            raise Exception("Column removal failed.")
 
     def separate_label_feature(self, data, label_column_name):
         """
-                        Method Name: separate_label_feature
-                        Description: This method separates the features and a Label Coulmns.
-                        Output: Returns two separate Dataframes, one containing features and the other containing Labels .
-                        On Failure: Raise Exception
+        Separates features and label columns.
 
-                        Written By: iNeuron Intelligence
-                        Version: 1.0
-                        Revisions: None
+        Args:
+            data: The dataset containing features and label columns.
+            label_column_name: The name of the label column.
 
-                """
-        self.logger_object.log(self.file_object, 'Entered the separate_label_feature method of the Preprocessor class')
-        try:
-            self.X=data.drop(labels=label_column_name,axis=1) # drop the columns specified and separate the feature columns
-            self.Y=data[label_column_name] # Filter the Label columns
-            self.logger_object.log(self.file_object,
-                                   'Label Separation Successful. Exited the separate_label_feature method of the Preprocessor class')
-            return self.X,self.Y
-        except Exception as e:
-            self.logger_object.log(self.file_object,'Exception occured in separate_label_feature method of the Preprocessor class. Exception message:  ' + str(e))
-            self.logger_object.log(self.file_object, 'Label Separation Unsuccessful. Exited the separate_label_feature method of the Preprocessor class')
-            raise Exception()
+        Returns:
+            X: Features DataFrame.
+            Y: Label column DataFrame.
 
-    def is_null_present(self,data):
+        Raises:
+            Exception: If label separation fails.
         """
-                                Method Name: is_null_present
-                                Description: This method checks whether there are null values present in the pandas Dataframe or not.
-                                Output: Returns a Boolean Value. True if null values are present in the DataFrame, False if they are not present.
-                                On Failure: Raise Exception
-
-                                Written By: iNeuron Intelligence
-                                Version: 1.0
-                                Revisions: None
-
-                        """
-        self.logger_object.log(self.file_object, 'Entered the is_null_present method of the Preprocessor class')
-        self.null_present = False
+        self.logger_object.log(self.file_object, 'Entered separate_label_feature method.')
         try:
-            self.null_counts=data.isna().sum() # check for the count of null values per column
-            for i in self.null_counts:
-                if i>0:
-                    self.null_present=True
-                    break
-            if(self.null_present): # write the logs to see which columns have null values
-                dataframe_with_null = pd.DataFrame()
-                dataframe_with_null['columns'] = data.columns
-                dataframe_with_null['missing values count'] = np.asarray(data.isna().sum())
-                dataframe_with_null.to_csv('preprocessing_data/null_values.csv') # storing the null column information to file
-            self.logger_object.log(self.file_object,'Finding missing values is a success.Data written to the null values file. Exited the is_null_present method of the Preprocessor class')
-            return self.null_present
+            X = data.drop(labels=label_column_name, axis=1)  # Features
+            Y = data[label_column_name]  # Labels
+            self.logger_object.log(self.file_object, 'Label separation successful.')
+            return X, Y
         except Exception as e:
-            self.logger_object.log(self.file_object,'Exception occured in is_null_present method of the Preprocessor class. Exception message:  ' + str(e))
-            self.logger_object.log(self.file_object,'Finding missing values failed. Exited the is_null_present method of the Preprocessor class')
-            raise Exception()
+            self.logger_object.log(self.file_object, f"Error in separate_label_feature: {str(e)}")
+            raise Exception("Label separation failed.")
+
+    def is_null_present(self, data):
+        """
+        Checks if there are any null values in the dataset.
+
+        Args:
+            data: DataFrame to check for null values.
+
+        Returns:
+            True if null values are present, False otherwise.
+
+        Raises:
+            Exception: If the null check fails.
+        """
+        self.logger_object.log(self.file_object, 'Entered is_null_present method.')
+        try:
+            null_counts = data.isna().sum()
+            null_present = null_counts.any()  # Check if any column has null values
+
+            if null_present:
+                dataframe_with_null = pd.DataFrame({
+                    'columns': data.columns,
+                    'missing values count': null_counts
+                })
+                dataframe_with_null.to_csv('preprocessing_data/null_values.csv')  # Save missing values info to a file
+
+            self.logger_object.log(self.file_object, 'Null check completed.')
+            return null_present
+        except Exception as e:
+            self.logger_object.log(self.file_object, f"Error in is_null_present: {str(e)}")
+            raise Exception("Null check failed.")
 
     def impute_missing_values(self, data):
         """
-                                        Method Name: impute_missing_values
-                                        Description: This method replaces all the missing values in the Dataframe using KNN Imputer.
-                                        Output: A Dataframe which has all the missing values imputed.
-                                        On Failure: Raise Exception
+        Imputes missing values in the dataset using KNN Imputer.
 
-                                        Written By: iNeuron Intelligence
-                                        Version: 1.0
-                                        Revisions: None
-                     """
-        self.logger_object.log(self.file_object, 'Entered the impute_missing_values method of the Preprocessor class')
-        self.data= data
-        try:
-            imputer=KNNImputer(n_neighbors=3, weights='uniform',missing_values=np.nan)
-            self.new_array=imputer.fit_transform(self.data) # impute the missing values
-            # convert the nd-array returned in the step above to a Dataframe
-            self.new_data=pd.DataFrame(data=self.new_array, columns=self.data.columns)
-            self.logger_object.log(self.file_object, 'Imputing missing values Successful. Exited the impute_missing_values method of the Preprocessor class')
-            return self.new_data
-        except Exception as e:
-            self.logger_object.log(self.file_object,'Exception occured in impute_missing_values method of the Preprocessor class. Exception message:  ' + str(e))
-            self.logger_object.log(self.file_object,'Imputing missing values failed. Exited the impute_missing_values method of the Preprocessor class')
-            raise Exception()
+        Args:
+            data: DataFrame with missing values.
 
-    def get_columns_with_zero_std_deviation(self,data):
+        Returns:
+            A DataFrame with missing values imputed.
+
+        Raises:
+            Exception: If imputation fails.
         """
-                                                Method Name: get_columns_with_zero_std_deviation
-                                                Description: This method finds out the columns which have a standard deviation of zero.
-                                                Output: List of the columns with standard deviation of zero
-                                                On Failure: Raise Exception
-
-                                                Written By: iNeuron Intelligence
-                                                Version: 1.0
-                                                Revisions: None
-                             """
-        self.logger_object.log(self.file_object, 'Entered the get_columns_with_zero_std_deviation method of the Preprocessor class')
-        self.columns=data.columns
-        self.data_n = data.describe()
-        self.col_to_drop=[]
+        self.logger_object.log(self.file_object, 'Entered impute_missing_values method.')
         try:
-            for x in self.columns:
-                if (self.data_n[x]['std'] == 0): # check if standard deviation is zero
-                    self.col_to_drop.append(x)  # prepare the list of columns with standard deviation zero
-            self.logger_object.log(self.file_object, 'Column search for Standard Deviation of Zero Successful. Exited the get_columns_with_zero_std_deviation method of the Preprocessor class')
-            return self.col_to_drop
-
+            imputer = KNNImputer(n_neighbors=3, weights='uniform', missing_values=np.nan)
+            new_array = imputer.fit_transform(data)  # Impute missing values
+            new_data = pd.DataFrame(data=new_array, columns=data.columns)
+            self.logger_object.log(self.file_object, 'Missing values imputed successfully.')
+            return new_data
         except Exception as e:
-            self.logger_object.log(self.file_object,'Exception occured in get_columns_with_zero_std_deviation method of the Preprocessor class. Exception message:  ' + str(e))
-            self.logger_object.log(self.file_object, 'Column search for Standard Deviation of Zero Failed. Exited the get_columns_with_zero_std_deviation method of the Preprocessor class')
-            raise Exception()
+            self.logger_object.log(self.file_object, f"Error in impute_missing_values: {str(e)}")
+            raise Exception("Imputation of missing values failed.")
+
+    def get_columns_with_zero_std_deviation(self, data):
+        """
+        Finds columns in the dataset that have a standard deviation of zero.
+
+        Args:
+            data: DataFrame to check for zero standard deviation columns.
+
+        Returns:
+            List of columns with zero standard deviation.
+
+        Raises:
+            Exception: If the process fails.
+        """
+        self.logger_object.log(self.file_object, 'Entered get_columns_with_zero_std_deviation method.')
+        try:
+            cols_with_zero_std = data.columns[data.std() == 0].tolist()  # Find columns with zero std deviation
+            self.logger_object.log(self.file_object, 'Zero standard deviation column check successful.')
+            return cols_with_zero_std
+        except Exception as e:
+            self.logger_object.log(self.file_object, f"Error in get_columns_with_zero_std_deviation: {str(e)}")
+            raise Exception("Column search for zero standard deviation failed.")

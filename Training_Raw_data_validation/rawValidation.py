@@ -1,382 +1,141 @@
-import sqlite3
-from datetime import datetime
-from os import listdir
 import os
+import shutil
 import re
 import json
-import shutil
 import pandas as pd
+from datetime import datetime
 from application_logging.logger import App_Logger
 
-
-
-
-
-class Raw_Data_validation:
-
+class RawDataValidation:
     """
-             This class shall be used for handling all the validation done on the Raw Training Data!!.
+    Handles validation of raw training data.
+    Validates file names, column lengths, missing values, and more based on a predefined schema.
+    """
 
-             Written By: iNeuron Intelligence
-             Version: 1.0
-             Revisions: None
-
-             """
-
-    def __init__(self,path):
-        self.Batch_Directory = path
+    def __init__(self, path):
+        self.batch_directory = path
         self.schema_path = 'schema_training.json'
         self.logger = App_Logger()
 
+    def _log_message(self, log_file, message):
+        with open(log_file, 'a+') as log:
+            self.logger.log(log, message)
 
-    def valuesFromSchema(self):
-        """
-                        Method Name: valuesFromSchema
-                        Description: This method extracts all the relevant information from the pre-defined "Schema" file.
-                        Output: LengthOfDateStampInFile, LengthOfTimeStampInFile, column_names, Number of Columns
-                        On Failure: Raise ValueError,KeyError,Exception
+    def _create_directory(self, directory):
+        if not os.path.isdir(directory):
+            os.makedirs(directory)
 
-                         Written By: iNeuron Intelligence
-                        Version: 1.0
-                        Revisions: None
+    def _delete_directory(self, directory):
+        if os.path.isdir(directory):
+            shutil.rmtree(directory)
 
-                                """
+    def _move_files(self, src, dest, files):
+        for file in files:
+            shutil.move(os.path.join(src, file), dest)
+
+    def _load_schema(self):
         try:
             with open(self.schema_path, 'r') as f:
-                dic = json.load(f)
-                f.close()
-            pattern = dic['SampleFileName']
-            LengthOfDateStampInFile = dic['LengthOfDateStampInFile']
-            LengthOfTimeStampInFile = dic['LengthOfTimeStampInFile']
-            column_names = dic['ColName']
-            NumberofColumns = dic['NumberofColumns']
-
-            file = open("Training_Logs/valuesfromSchemaValidationLog.txt", 'a+')
-            message ="LengthOfDateStampInFile:: %s" %LengthOfDateStampInFile + "\t" + "LengthOfTimeStampInFile:: %s" % LengthOfTimeStampInFile +"\t " + "NumberofColumns:: %s" % NumberofColumns + "\n"
-            self.logger.log(file,message)
-
-            file.close()
-
-
-
-        except ValueError:
-            file = open("Training_Logs/valuesfromSchemaValidationLog.txt", 'a+')
-            self.logger.log(file,"ValueError:Value not found inside schema_training.json")
-            file.close()
-            raise ValueError
-
-        except KeyError:
-            file = open("Training_Logs/valuesfromSchemaValidationLog.txt", 'a+')
-            self.logger.log(file, "KeyError:Key value error incorrect key passed")
-            file.close()
-            raise KeyError
-
+                return json.load(f)
         except Exception as e:
-            file = open("Training_Logs/valuesfromSchemaValidationLog.txt", 'a+')
-            self.logger.log(file, str(e))
-            file.close()
-            raise e
+            self._log_message("Training_Logs/GeneralLog.txt", f"Error loading schema: {e}")
+            raise
 
-        return LengthOfDateStampInFile, LengthOfTimeStampInFile, column_names, NumberofColumns
-
-
-    def manualRegexCreation(self):
+    def values_from_schema(self):
         """
-                                Method Name: manualRegexCreation
-                                Description: This method contains a manually defined regex based on the "FileName" given in "Schema" file.
-                                            This Regex is used to validate the filename of the training data.
-                                Output: Regex pattern
-                                On Failure: None
-
-                                 Written By: iNeuron Intelligence
-                                Version: 1.0
-                                Revisions: None
-
-                                        """
-        regex = "['wafer']+['\_'']+[\d_]+[\d]+\.csv"
-        return regex
-
-    def createDirectoryForGoodBadRawData(self):
-
+        Extracts values from schema file for validation (e.g., date, timestamp length, columns).
         """
-                                      Method Name: createDirectoryForGoodBadRawData
-                                      Description: This method creates directories to store the Good Data and Bad Data
-                                                    after validating the training data.
-
-                                      Output: None
-                                      On Failure: OSError
-
-                                       Written By: iNeuron Intelligence
-                                      Version: 1.0
-                                      Revisions: None
-
-                                              """
-
         try:
-            path = os.path.join("Training_Raw_files_validated/", "Good_Raw/")
-            if not os.path.isdir(path):
-                os.makedirs(path)
-            path = os.path.join("Training_Raw_files_validated/", "Bad_Raw/")
-            if not os.path.isdir(path):
-                os.makedirs(path)
+            schema = self._load_schema()
+            LengthOfDateStampInFile = schema['LengthOfDateStampInFile']
+            LengthOfTimeStampInFile = schema['LengthOfTimeStampInFile']
+            column_names = schema['ColName']
+            NumberofColumns = schema['NumberofColumns']
 
-        except OSError as ex:
-            file = open("Training_Logs/GeneralLog.txt", 'a+')
-            self.logger.log(file,"Error while creating Directory %s:" % ex)
-            file.close()
-            raise OSError
+            message = f"DateStamp Length: {LengthOfDateStampInFile}, TimeStamp Length: {LengthOfTimeStampInFile}, Columns: {NumberofColumns}"
+            self._log_message("Training_Logs/valuesfromSchemaValidationLog.txt", message)
+            return LengthOfDateStampInFile, LengthOfTimeStampInFile, column_names, NumberofColumns
+        except KeyError as e:
+            self._log_message("Training_Logs/valuesfromSchemaValidationLog.txt", f"KeyError: {e}")
+            raise
 
-    def deleteExistingGoodDataTrainingFolder(self):
-
+    def manual_regex_creation(self):
         """
-                                            Method Name: deleteExistingGoodDataTrainingFolder
-                                            Description: This method deletes the directory made  to store the Good Data
-                                                          after loading the data in the table. Once the good files are
-                                                          loaded in the DB,deleting the directory ensures space optimization.
-                                            Output: None
-                                            On Failure: OSError
-
-                                             Written By: iNeuron Intelligence
-                                            Version: 1.0
-                                            Revisions: None
-
-                                                    """
-
-        try:
-            path = 'Training_Raw_files_validated/'
-            # if os.path.isdir("ids/" + userName):
-            # if os.path.isdir(path + 'Bad_Raw/'):
-            #     shutil.rmtree(path + 'Bad_Raw/')
-            if os.path.isdir(path + 'Good_Raw/'):
-                shutil.rmtree(path + 'Good_Raw/')
-                file = open("Training_Logs/GeneralLog.txt", 'a+')
-                self.logger.log(file,"GoodRaw directory deleted successfully!!!")
-                file.close()
-        except OSError as s:
-            file = open("Training_Logs/GeneralLog.txt", 'a+')
-            self.logger.log(file,"Error while Deleting Directory : %s" %s)
-            file.close()
-            raise OSError
-
-    def deleteExistingBadDataTrainingFolder(self):
-
+        Returns a regex pattern for validating file names.
         """
-                                            Method Name: deleteExistingBadDataTrainingFolder
-                                            Description: This method deletes the directory made to store the bad Data.
-                                            Output: None
-                                            On Failure: OSError
+        return r"['wafer']+['\_'']+[\d_]+[\d]+\.csv"
 
-                                             Written By: iNeuron Intelligence
-                                            Version: 1.0
-                                            Revisions: None
-
-                                                    """
-
-        try:
-            path = 'Training_Raw_files_validated/'
-            if os.path.isdir(path + 'Bad_Raw/'):
-                shutil.rmtree(path + 'Bad_Raw/')
-                file = open("Training_Logs/GeneralLog.txt", 'a+')
-                self.logger.log(file,"BadRaw directory deleted before starting validation!!!")
-                file.close()
-        except OSError as s:
-            file = open("Training_Logs/GeneralLog.txt", 'a+')
-            self.logger.log(file,"Error while Deleting Directory : %s" %s)
-            file.close()
-            raise OSError
-
-    def moveBadFilesToArchiveBad(self):
-
+    def create_directories_for_good_bad_raw_data(self):
         """
-                                            Method Name: moveBadFilesToArchiveBad
-                                            Description: This method deletes the directory made  to store the Bad Data
-                                                          after moving the data in an archive folder. We archive the bad
-                                                          files to send them back to the client for invalid data issue.
-                                            Output: None
-                                            On Failure: OSError
+        Creates directories to store validated good and bad raw data.
+        """
+        self._create_directory("Training_Raw_files_validated/Good_Raw/")
+        self._create_directory("Training_Raw_files_validated/Bad_Raw/")
 
-                                             Written By: iNeuron Intelligence
-                                            Version: 1.0
-                                            Revisions: None
+    def delete_existing_directories(self):
+        """
+        Deletes existing directories for good and bad data to optimize space.
+        """
+        self._delete_directory('Training_Raw_files_validated/Good_Raw/')
+        self._delete_directory('Training_Raw_files_validated/Bad_Raw/')
 
-                                                    """
+    def move_bad_files_to_archive(self):
+        """
+        Archives bad data files and removes the bad raw data folder.
+        """
         now = datetime.now()
-        date = now.date()
-        time = now.strftime("%H%M%S")
-        try:
+        timestamp = now.strftime("%Y%m%d_%H%M%S")
+        archive_path = f"TrainingArchiveBadData/BadData_{timestamp}"
 
-            source = 'Training_Raw_files_validated/Bad_Raw/'
-            if os.path.isdir(source):
-                path = "TrainingArchiveBadData"
-                if not os.path.isdir(path):
-                    os.makedirs(path)
-                dest = 'TrainingArchiveBadData/BadData_' + str(date)+"_"+str(time)
-                if not os.path.isdir(dest):
-                    os.makedirs(dest)
-                files = os.listdir(source)
-                for f in files:
-                    if f not in os.listdir(dest):
-                        shutil.move(source + f, dest)
-                file = open("Training_Logs/GeneralLog.txt", 'a+')
-                self.logger.log(file,"Bad files moved to archive")
-                path = 'Training_Raw_files_validated/'
-                if os.path.isdir(path + 'Bad_Raw/'):
-                    shutil.rmtree(path + 'Bad_Raw/')
-                self.logger.log(file,"Bad Raw Data Folder Deleted successfully!!")
-                file.close()
-        except Exception as e:
-            file = open("Training_Logs/GeneralLog.txt", 'a+')
-            self.logger.log(file, "Error while moving bad files to archive:: %s" % e)
-            file.close()
-            raise e
+        self._create_directory(archive_path)
+        bad_files = os.listdir('Training_Raw_files_validated/Bad_Raw/')
+        self._move_files('Training_Raw_files_validated/Bad_Raw/', archive_path, bad_files)
 
+        self._delete_directory('Training_Raw_files_validated/Bad_Raw/')
+        self._log_message("Training_Logs/GeneralLog.txt", "Bad files moved to archive.")
 
-
-
-    def validationFileNameRaw(self,regex,LengthOfDateStampInFile,LengthOfTimeStampInFile):
+    def validate_file_name(self, regex, LengthOfDateStampInFile, LengthOfTimeStampInFile):
         """
-                    Method Name: validationFileNameRaw
-                    Description: This function validates the name of the training csv files as per given name in the schema!
-                                 Regex pattern is used to do the validation.If name format do not match the file is moved
-                                 to Bad Raw Data folder else in Good raw data.
-                    Output: None
-                    On Failure: Exception
+        Validates the file name according to schema and moves files to appropriate folders.
+        """
+        self.delete_existing_directories()
+        self.create_directories_for_good_bad_raw_data()
 
-                     Written By: iNeuron Intelligence
-                    Version: 1.0
-                    Revisions: None
-
-                """
-
-        #pattern = "['Wafer']+['\_'']+[\d_]+[\d]+\.csv"
-        # delete the directories for good and bad data in case last run was unsuccessful and folders were not deleted.
-        self.deleteExistingBadDataTrainingFolder()
-        self.deleteExistingGoodDataTrainingFolder()
-        #create new directories
-        self.createDirectoryForGoodBadRawData()
-        onlyfiles = [f for f in listdir(self.Batch_Directory)]
-        try:
-            f = open("Training_Logs/nameValidationLog.txt", 'a+')
-            for filename in onlyfiles:
-                if (re.match(regex, filename)):
-                    splitAtDot = re.split('.csv', filename)
-                    splitAtDot = (re.split('_', splitAtDot[0]))
-                    if len(splitAtDot[1]) == LengthOfDateStampInFile:
-                        if len(splitAtDot[2]) == LengthOfTimeStampInFile:
-                            shutil.copy("Training_Batch_Files/" + filename, "Training_Raw_files_validated/Good_Raw")
-                            self.logger.log(f,"Valid File name!! File moved to GoodRaw Folder :: %s" % filename)
-
-                        else:
-                            shutil.copy("Training_Batch_Files/" + filename, "Training_Raw_files_validated/Bad_Raw")
-                            self.logger.log(f,"Invalid File Name!! File moved to Bad Raw Folder :: %s" % filename)
-                    else:
-                        shutil.copy("Training_Batch_Files/" + filename, "Training_Raw_files_validated/Bad_Raw")
-                        self.logger.log(f,"Invalid File Name!! File moved to Bad Raw Folder :: %s" % filename)
+        for filename in os.listdir(self.batch_directory):
+            if re.match(regex, filename):
+                split_at_dot = re.split('.csv', filename)[0]
+                split_at_underscore = re.split('_', split_at_dot)
+                if len(split_at_underscore[1]) == LengthOfDateStampInFile and len(split_at_underscore[2]) == LengthOfTimeStampInFile:
+                    shutil.copy(os.path.join(self.batch_directory, filename), "Training_Raw_files_validated/Good_Raw")
+                    self._log_message("Training_Logs/nameValidationLog.txt", f"Valid file: {filename}")
                 else:
-                    shutil.copy("Training_Batch_Files/" + filename, "Training_Raw_files_validated/Bad_Raw")
-                    self.logger.log(f, "Invalid File Name!! File moved to Bad Raw Folder :: %s" % filename)
+                    shutil.copy(os.path.join(self.batch_directory, filename), "Training_Raw_files_validated/Bad_Raw")
+                    self._log_message("Training_Logs/nameValidationLog.txt", f"Invalid file: {filename}")
+            else:
+                shutil.copy(os.path.join(self.batch_directory, filename), "Training_Raw_files_validated/Bad_Raw")
+                self._log_message("Training_Logs/nameValidationLog.txt", f"Invalid file name: {filename}")
 
-            f.close()
-
-        except Exception as e:
-            f = open("Training_Logs/nameValidationLog.txt", 'a+')
-            self.logger.log(f, "Error occured while validating FileName %s" % e)
-            f.close()
-            raise e
-
-
-
-
-    def validateColumnLength(self,NumberofColumns):
+    def validate_column_length(self, expected_columns):
         """
-                          Method Name: validateColumnLength
-                          Description: This function validates the number of columns in the csv files.
-                                       It is should be same as given in the schema file.
-                                       If not same file is not suitable for processing and thus is moved to Bad Raw Data folder.
-                                       If the column number matches, file is kept in Good Raw Data for processing.
-                                      The csv file is missing the first column name, this function changes the missing name to "Wafer".
-                          Output: None
-                          On Failure: Exception
-
-                           Written By: iNeuron Intelligence
-                          Version: 1.0
-                          Revisions: None
-
-                      """
-        try:
-            f = open("Training_Logs/columnValidationLog.txt", 'a+')
-            self.logger.log(f,"Column Length Validation Started!!")
-            for file in listdir('Training_Raw_files_validated/Good_Raw/'):
-                csv = pd.read_csv("Training_Raw_files_validated/Good_Raw/" + file)
-                if csv.shape[1] == NumberofColumns:
-                    pass
-                else:
-                    shutil.move("Training_Raw_files_validated/Good_Raw/" + file, "Training_Raw_files_validated/Bad_Raw")
-                    self.logger.log(f, "Invalid Column Length for the file!! File moved to Bad Raw Folder :: %s" % file)
-            self.logger.log(f, "Column Length Validation Completed!!")
-        except OSError:
-            f = open("Training_Logs/columnValidationLog.txt", 'a+')
-            self.logger.log(f, "Error Occured while moving the file :: %s" % OSError)
-            f.close()
-            raise OSError
-        except Exception as e:
-            f = open("Training_Logs/columnValidationLog.txt", 'a+')
-            self.logger.log(f, "Error Occured:: %s" % e)
-            f.close()
-            raise e
-        f.close()
-
-    def validateMissingValuesInWholeColumn(self):
+        Validates the number of columns in CSV files.
         """
-                                  Method Name: validateMissingValuesInWholeColumn
-                                  Description: This function validates if any column in the csv file has all values missing.
-                                               If all the values are missing, the file is not suitable for processing.
-                                               SUch files are moved to bad raw data.
-                                  Output: None
-                                  On Failure: Exception
+        for file in os.listdir('Training_Raw_files_validated/Good_Raw/'):
+            csv = pd.read_csv(os.path.join('Training_Raw_files_validated/Good_Raw/', file))
+            if csv.shape[1] != expected_columns:
+                shutil.move(os.path.join('Training_Raw_files_validated/Good_Raw/', file), 'Training_Raw_files_validated/Bad_Raw')
+                self._log_message("Training_Logs/columnValidationLog.txt", f"Invalid column length: {file}")
 
-                                   Written By: iNeuron Intelligence
-                                  Version: 1.0
-                                  Revisions: None
-
-                              """
-        try:
-            f = open("Training_Logs/missingValuesInColumn.txt", 'a+')
-            self.logger.log(f,"Missing Values Validation Started!!")
-
-            for file in listdir('Training_Raw_files_validated/Good_Raw/'):
-                csv = pd.read_csv("Training_Raw_files_validated/Good_Raw/" + file)
-                count = 0
-                for columns in csv:
-                    if (len(csv[columns]) - csv[columns].count()) == len(csv[columns]):
-                        count+=1
-                        shutil.move("Training_Raw_files_validated/Good_Raw/" + file,
-                                    "Training_Raw_files_validated/Bad_Raw")
-                        self.logger.log(f,"Invalid Column Length for the file!! File moved to Bad Raw Folder :: %s" % file)
-                        break
-                if count==0:
-                    csv.rename(columns={"Unnamed: 0": "Wafer"}, inplace=True)
-                    csv.to_csv("Training_Raw_files_validated/Good_Raw/" + file, index=None, header=True)
-        except OSError:
-            f = open("Training_Logs/missingValuesInColumn.txt", 'a+')
-            self.logger.log(f, "Error Occured while moving the file :: %s" % OSError)
-            f.close()
-            raise OSError
-        except Exception as e:
-            f = open("Training_Logs/missingValuesInColumn.txt", 'a+')
-            self.logger.log(f, "Error Occured:: %s" % e)
-            f.close()
-            raise e
-        f.close()
-
-
-
-
-
-
-
-
-
-
-
-
+    def validate_missing_values(self):
+        """
+        Validates if any column has missing values for the entire column.
+        """
+        for file in os.listdir('Training_Raw_files_validated/Good_Raw/'):
+            csv = pd.read_csv(os.path.join('Training_Raw_files_validated/Good_Raw/', file))
+            for column in csv.columns:
+                if csv[column].isnull().all():
+                    shutil.move(os.path.join('Training_Raw_files_validated/Good_Raw/', file), 'Training_Raw_files_validated/Bad_Raw')
+                    self._log_message("Training_Logs/missingValuesInColumn.txt", f"Missing values in column: {file}")
+                    break
+            else:
+                csv.rename(columns={"Unnamed: 0": "Wafer"}, inplace=True)
+                csv.to_csv(os.path.join('Training_Raw_files_validated/Good_Raw/', file), index=False)
